@@ -21,12 +21,12 @@ def mock_define_circle_edges(*args, **kwargs):
 def test_flood_fill():
     edges = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0), (1, 4), (2, 0), (2, 4), (3, 0), (3, 4),
              (4, 0), (4, 1), (4, 2), (4, 3), (4, 5)]
-    phototaxis.flood_fill(1, 3, edges)
-    assert sorted(edges) == [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
-                             (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
-                             (2, 0), (2, 1), (2, 2), (2, 3), (2, 4),
-                             (3, 0), (3, 1), (3, 2), (3, 3), (3, 4),
-                             (4, 0), (4, 1), (4, 2), (4, 3), (4, 5)]
+    filled_surface = phototaxis.flood_fill(1, 3, edges)
+    assert sorted(filled_surface) == [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4),
+                                      (1, 0), (1, 1), (1, 2), (1, 3), (1, 4),
+                                      (2, 0), (2, 1), (2, 2), (2, 3), (2, 4),
+                                      (3, 0), (3, 1), (3, 2), (3, 3), (3, 4),
+                                      (4, 0), (4, 1), (4, 2), (4, 3), (4, 5)]
 
 
 def test_define_circle_edges():
@@ -46,14 +46,18 @@ def test_define_circle_edges():
                              (4, 1), (4, 2), (4, 3)]
 
 
-def test_grid_init(monkeypatch):
+def test_world_init(monkeypatch):
     monkeypatch.setattr(phototaxis, "define_circle_edges", mock_define_circle_edges)
-    grid = phototaxis.Grid(3, 1)
-    assert grid.grid == [[None, None, None], [None, None, None], [None, None, None]]
+    world = phototaxis.World(3, 1)
+    assert world.grid == [[None, None, None], [None, None, None], [None, None, None]]
 
-    assert grid.edges == [(0, 1), (0, 2), (0, 3), (1, 0), (1, 4), (2, 0),
-                          (2, 4), (3, 0), (3, 4), (4, 1), (4, 2), (4, 3)]
-    assert grid.surface == [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
+    assert world.dish_edges == [(0, 1), (0, 2), (0, 3), (1, 0), (1, 4), (2, 0),
+                                (2, 4), (3, 0), (3, 4), (4, 1), (4, 2), (4, 3)]
+    assert world.dish_surface == [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
+    assert world.light_spots == []
+    assert world.pop_size == 0
+    assert world.sum_food_eaten == 0
+    assert world.sum_suntan == 0
 
 
 def test_genome_init(monkeypatch):
@@ -72,34 +76,30 @@ def test_genome_init(monkeypatch):
 
 
 def test_worm_init(ho):
-    light = [(1, 1), (1, 2)]
-    worm = phototaxis.Worm(ho.grid(), light, ho.genome())
-    assert worm.grid
-    assert (worm.x, worm.y) in ho.grid().surface
-    assert worm.light == [(1, 1), (1, 2)]
+    worm = phototaxis.Worm(ho.world(), ho.genome())
+    assert worm.world
+    assert (worm.x, worm.y) in ho.world().dish_surface
     assert worm.direction in [0, 1, 2, 3]
     assert worm.state in phototaxis.STATES
     assert worm.genome
-    assert worm.time_in_light == 1
-    assert worm.time_in_dark == 1
-    assert worm.age == 1
+    assert worm.time_in_light == 0
+    assert worm.age == 0
 
 
-def test_worm_step(monkeypatch, ho):
+def test_worm_step(ho):
     worm = ho.worm()
     worm.step = phototaxis.Worm.step
     worm.move = lambda *_: True
 
-    worm.step(worm)
-    assert worm.age == 2
-    assert worm.time_in_dark == 2
-    assert worm.time_in_light == 1
-
     worm.x, worm.y = 1, 2
     worm.step(worm)
-    assert worm.age == 3
-    assert worm.time_in_dark == 2
-    assert worm.time_in_light == 2
+    assert worm.age == 1
+    assert worm.time_in_light == 1
+
+    worm.x, worm.y = 2, 2
+    worm.step(worm)
+    assert worm.age == 2
+    assert worm.time_in_light == 0
 
 
 def test_worm_move(monkeypatch, capsys, ho):
@@ -120,7 +120,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "fwd"
-    assert worm.time_in_light == 1
+    assert worm.time_in_light == 0
     assert out == "move_forward() called\n"
 
     # Move rev
@@ -131,7 +131,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "rev"
-    assert worm.time_in_light == 1
+    assert worm.time_in_light == 0
     assert out == "move_backward() called\n"
 
     # Move left
@@ -142,7 +142,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 3
     assert worm.state == "left"
-    assert worm.time_in_light == 1
+    assert worm.time_in_light == 0
     assert not out
 
     # Move right
@@ -153,7 +153,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "right"
-    assert worm.time_in_light == 1
+    assert worm.time_in_light == 0
     assert not out
 
     # Move stop
@@ -164,7 +164,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "stop"
-    assert worm.time_in_light == 1
+    assert worm.time_in_light == 0
     assert not out
 
     # 360 rotation, in the light!

@@ -15,19 +15,21 @@ def flood_fill(x_ori, y_ori, edges):
     Note that this implementation forms infinite loop if surrounding structure is not closed
     :param x_ori:
     :param y_ori:
-    :param edges:
+    :param edges: Starting enclosure
     :return:
     """
+    surface = edges
     stack = [(x_ori, y_ori)]
     while len(stack) > 0:
         x, y = stack.pop()
-        if (x, y) in edges:
+        if (x, y) in surface:
             continue
-        edges.append((x, y))
+        surface.append((x, y))
         stack.append((x + 1, y))  # right
         stack.append((x - 1, y))  # left
         stack.append((x, y + 1))  # down
         stack.append((x, y - 1))  # up
+    return surface
 
 
 def define_circle_edges(len_side, pixel_size, x0=0, y0=0, fill=False):
@@ -73,19 +75,33 @@ def define_circle_edges(len_side, pixel_size, x0=0, y0=0, fill=False):
     return edges
 
 
-class Grid(object):
+class World(object):
     def __init__(self, len_side, pixel_size):
         """
         Create a square grid surface, with a circular 'plate' in its center
         :param len_side: The length of a side as passed into PyGame
         :param pixel_size: How many side units are contained in a single 'pixel' in the actual grid
+
+        Grid space type values:
+        0 = Edge (out of bounds) = black
+        1 = Open space, no light = white
+        2 = Open space, light    = blue
+        3 = Occupied             = orange
         """
+
+        # Initiate the environment
         pix_per_side = int(len_side / pixel_size)
         self.grid = [[None for _ in range(pix_per_side)] for _ in range(pix_per_side)]
-        self.edges = define_circle_edges(len_side, pixel_size)
-        self.surface = define_circle_edges(len_side, pixel_size, fill=True)
-        for edge in self.edges:
-            del self.surface[self.surface.index(edge)]
+        self.dish_edges = define_circle_edges(len_side, pixel_size)
+        self.dish_surface = define_circle_edges(len_side, pixel_size, fill=True)
+        for edge in self.dish_edges:
+            del self.dish_surface[self.dish_surface.index(edge)]
+        self.light_spots = []
+
+        # Set a few global variables
+        self.pop_size = 0
+        self.sum_food_eaten = 0
+        self.sum_suntan = 0
 
 
 class Genome(object):
@@ -104,22 +120,25 @@ class Genome(object):
 
 
 class Worm(object):
-    def __init__(self, grid, light, genome):
+    def __init__(self, world, genome):
         """
         Create a virtual worm object
-        :param grid: Grid object
-        :param light: List of coords that are marked as 'illuminated' by light
+        :param world: World object
         :param genome: Genome object
+
+        Directions:
+        0 = Up
+        1 = Right
+        2 = Down
+        3 = Left
         """
-        self.grid = grid
-        self.x, self.y = rand.choice(self.grid.surface)
-        self.light = light
+        self.world = world
+        self.x, self.y = rand.choice(self.world.dish_surface)
         self.direction = rand.choice([0, 1, 2, 3])
         self.state = rand.choice(STATES)
         self.genome = genome
-        self.age = 1
-        self.time_in_light = 1
-        self.time_in_dark = 1
+        self.age = 0
+        self.time_in_light = 0
 
     def step(self, *args):
         """
@@ -129,10 +148,10 @@ class Worm(object):
         """
         if args:
             pass
-        if (self.x, self.y) in self.light:
+        if (self.x, self.y) in self.world.light_spots:
             self.time_in_light += 1
         else:
-            self.time_in_dark += 1
+            self.time_in_light -= 1 if self.time_in_light > 0 else 0
         self.age += 1
         self.move()
         return
@@ -150,7 +169,7 @@ class Worm(object):
         for i in range(2):  # This allows a wall to be bumped into and responded to, but if they bump again, too bad.
             action = rand.random()
             sum_options = 0
-            if (self.x, self.y) in self.light:
+            if (self.x, self.y) in self.world.light_spots:
                 prob_set = self.genome.p_light if not wall else self.genome.p_light_wall
             else:
                 prob_set = self.genome.p_dark if not wall else self.genome.p_dark_wall
@@ -173,7 +192,7 @@ class Worm(object):
 
             if not wall or i == 1:
                 self.state = direction
-                self.grid.grid[self.x][self.y] = 3
+                self.world.grid[self.x][self.y] = 3
                 break
 
     def move_forward(self, *args):
@@ -182,22 +201,22 @@ class Worm(object):
 
         wall = False
         if self.direction == 0:
-            if (self.x, self.y - 1) in self.grid.edges:
+            if (self.x, self.y - 1) in self.world.dish_edges:
                 wall = True
             else:
                 self.y -= 1
         elif self.direction == 1:
-            if (self.x + 1, self.y) in self.grid.edges:
+            if (self.x + 1, self.y) in self.world.dish_edges:
                 wall = True
             else:
                 self.x += 1
         elif self.direction == 2:
-            if (self.x, self.y + 1) in self.grid.edges:
+            if (self.x, self.y + 1) in self.world.dish_edges:
                 wall = True
             else:
                 self.y += 1
         elif self.direction == 3:
-            if (self.x - 1, self.y) in self.grid.edges:
+            if (self.x - 1, self.y) in self.world.dish_edges:
                 wall = True
             else:
                 self.x -= 1
@@ -209,22 +228,22 @@ class Worm(object):
 
         wall = False
         if self.direction == 0:
-            if (self.x, self.y + 1) in self.grid.edges:
+            if (self.x, self.y + 1) in self.world.dish_edges:
                 wall = True
             else:
                 self.y += 1
         elif self.direction == 1:
-            if (self.x - 1, self.y) in self.grid.edges:
+            if (self.x - 1, self.y) in self.world.dish_edges:
                 wall = True
             else:
                 self.x -= 1
         elif self.direction == 2:
-            if (self.x, self.y - 1) in self.grid.edges:
+            if (self.x, self.y - 1) in self.world.dish_edges:
                 wall = True
             else:
                 self.y -= 1
         elif self.direction == 3:
-            if (self.x + 1, self.y) in self.grid.edges:
+            if (self.x + 1, self.y) in self.world.dish_edges:
                 wall = True
             else:
                 self.x += 1
@@ -265,41 +284,26 @@ def draw_pixel(x, y, type_val, scale=10):
     return
 
 
-"""
-Values:
-0 = Edge (out of bounds) = black
-1 = Open space, no light = white
-2 = Open space, light    = blue
-3 = Occupied             = orange
-
-Directions:
-0 = Up
-1 = Right
-2 = Down
-3 = Left
-"""
-
-
 def main(len_side, pixel_size):
     if len_side % pixel_size:
         raise ValueError("len_side is not divisible by pixel_size")
     pix_per_side = int(len_side / pixel_size)
-    grid = Grid(len_side, pixel_size)
-    light = define_circle_edges(10, 1, 20, 20, fill=True)
-    worms = [Worm(grid, light, Genome()) for _ in range(1000)]
+    world = World(len_side, pixel_size)
+    world.light_spots = define_circle_edges(10, 1, 20, 20, fill=True)
+    worms = [Worm(world, Genome()) for _ in range(1000)]
     while True:
         event_handler()
         for i in range(pix_per_side):
             for j in range(pix_per_side):
-                if (i * pixel_size, j * pixel_size) in grid.edges:
-                    grid.grid[i][j] = 0
-                elif (i * pixel_size, j * pixel_size) in light:
-                    grid.grid[i][j] = 2
+                if (i * pixel_size, j * pixel_size) in world.dish_edges:
+                    world.grid[i][j] = 0
+                elif (i * pixel_size, j * pixel_size) in world.light_spots:
+                    world.grid[i][j] = 2
                 else:
-                    grid.grid[i][j] = 1
+                    world.grid[i][j] = 1
         for worm in worms:
             worm.step()
-        for indx_i, i in enumerate(grid.grid):
+        for indx_i, i in enumerate(world.grid):
             for indx_j, j in enumerate(i):
                 draw_pixel(indx_i, indx_j, j)
         # print(max([worm.time_in_light for worm in worms]))
