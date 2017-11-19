@@ -4,6 +4,7 @@
 import pytest
 import types
 from collections import OrderedDict
+from copy import copy
 import phototaxis
 
 
@@ -31,12 +32,17 @@ class HelperObjects(object):
         trans_mat = [(i, j / 15) for i, j in zip(phototaxis.STATES, range(1, 6))]
         trans_mat = OrderedDict([(i, OrderedDict(trans_mat)) for i in phototaxis.STATES])
         genome_obj = types.SimpleNamespace()
-        genome_obj.p_dark = genome_obj.p_light = genome_obj.p_dark_wall = genome_obj.p_light_wall = trans_mat
+        genome_obj.p_dark = copy(trans_mat)
+        genome_obj.p_light = copy(trans_mat)
+        genome_obj.p_dark_wall = copy(trans_mat)
+        genome_obj.p_light_wall = copy(trans_mat)
         return genome_obj
 
     def worm(self):
         worm_obj = types.SimpleNamespace(world=self.world(), x=2, y=2, direction=0, state='left',
-                                         genome=self.genome(), age=0, time_in_light=0)
+                                         genome=self.genome(), age=0, time_in_light=1)
+        worm_obj.world.sum_suntan += 1
+        worm_obj.world.pop_size += 1
         return worm_obj
 
 

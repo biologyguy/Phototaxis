@@ -1,6 +1,7 @@
 import pytest
 import phototaxis
 from random import Random
+from collections import OrderedDict
 
 
 # ####################### Mock Resources ####################### #
@@ -82,7 +83,7 @@ def test_worm_init(ho):
     assert worm.direction in [0, 1, 2, 3]
     assert worm.state in phototaxis.STATES
     assert worm.genome
-    assert worm.time_in_light == 0
+    assert worm.time_in_light == 1
     assert worm.age == 0
     assert worm.world.pop_size == 1
 
@@ -95,14 +96,14 @@ def test_worm_step(ho):
     worm.x, worm.y = 1, 2
     worm.step(worm)
     assert worm.age == 1
-    assert worm.time_in_light == 1
-    assert worm.world.sum_suntan == 1
+    assert worm.time_in_light == 2
+    assert worm.world.sum_suntan == 2
 
     worm.x, worm.y = 2, 2
     worm.step(worm)
     assert worm.age == 2
-    assert worm.time_in_light == 0
-    assert worm.world.sum_suntan == 0
+    assert worm.time_in_light == 1
+    assert worm.world.sum_suntan == 1
 
 
 def test_worm_move(monkeypatch, capsys, ho):
@@ -123,7 +124,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "fwd"
-    assert worm.time_in_light == 0
+    assert worm.time_in_light == 1
     assert out == "move_forward() called\n"
 
     # Move rev
@@ -134,7 +135,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "rev"
-    assert worm.time_in_light == 0
+    assert worm.time_in_light == 1
     assert out == "move_backward() called\n"
 
     # Move left
@@ -145,7 +146,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 3
     assert worm.state == "left"
-    assert worm.time_in_light == 0
+    assert worm.time_in_light == 1
     assert not out
 
     # Move right
@@ -156,7 +157,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "right"
-    assert worm.time_in_light == 0
+    assert worm.time_in_light == 1
     assert not out
 
     # Move stop
@@ -167,7 +168,7 @@ def test_worm_move(monkeypatch, capsys, ho):
     assert worm.y == 2
     assert worm.direction == 0
     assert worm.state == "stop"
-    assert worm.time_in_light == 0
+    assert worm.time_in_light == 1
     assert not out
 
     # 360 rotation, in the light!
@@ -231,6 +232,42 @@ def test_worm_move_backward(direction, end, ho):
     assert worm.move_backward(worm)
     assert worm.direction == direction
     assert worm.x, worm.y == end
+
+
+def test_worm_breed(ho, monkeypatch):
+    rand = Random(1)
+    monkeypatch.setattr(phototaxis, "rand", rand)
+    world = ho.world()
+    worm1 = ho.worm()
+    worm2 = ho.worm()
+    worm1.adjacent_spaces = lambda *_: world.dish_surface
+    worm1.breed = phototaxis.Worm.breed
+    worm1.genome.p_dark["fwd"] = OrderedDict([(state, 1) for state in phototaxis.STATES])
+    worm1.genome.p_light["fwd"] = OrderedDict([(state, 1) for state in phototaxis.STATES])
+    worm1.genome.p_dark_wall["fwd"] = OrderedDict([(state, 1) for state in phototaxis.STATES])
+    worm1.genome.p_light_wall["fwd"] = OrderedDict([(state, 1) for state in phototaxis.STATES])
+    offspring = worm1.breed(worm1, worm2)
+
+    assert offspring.genome.p_dark["fwd"] == OrderedDict([('fwd', 1), ('rev', 1), ('left', 0.2),
+                                                          ('right', 1), ('stop', 0.3333333333333333)])
+    assert offspring.genome.p_light["fwd"] == OrderedDict([('fwd', 1), ('rev', 0.13333333333333333), ('left', 1),
+                                                           ('right', 1), ('stop', 0.3333333333333333)])
+    assert offspring.genome.p_dark_wall["fwd"] == OrderedDict([('fwd', 1), ('rev', 0.13333333333333333), ('left', 1),
+                                                               ('right', 0.26666666666666666),
+                                                               ('stop', 0.3333333333333333)])
+    assert offspring.genome.p_light_wall["fwd"] == OrderedDict([('fwd', 1), ('rev', 0.13333333333333333), ('left', 0.2),
+                                                                ('right', 0.26666666666666666),
+                                                                ('stop', 0.3333333333333333)])
+    assert (offspring.x, offspring.y) == (3, 3)
+    assert worm1.world.grid[3][3] == 3
+
+
+def test_worm_adjacent_spaces(ho):
+    worm = ho.worm()
+    worm.adjacent_spaces = phototaxis.Worm.adjacent_spaces
+    assert worm.adjacent_spaces(worm) == [(1, 1), (1, 2), (1, 3),
+                                          (2, 1), (2, 2), (2, 3),
+                                          (3, 1), (3, 2), (3, 3)]
 
 
 def test_random_transition_matrix(monkeypatch):

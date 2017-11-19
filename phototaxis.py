@@ -2,6 +2,8 @@ import pygame
 from pygame.locals import *
 from random import Random
 from collections import OrderedDict
+from scipy.stats import poisson
+from buddysuite import buddy_resources as br
 
 rand = Random()
 STATES = ["fwd", "rev", "left", "right", "stop"]
@@ -138,7 +140,10 @@ class Worm(object):
         self.state = rand.choice(STATES)
         self.genome = genome
         self.age = 0
-        self.time_in_light = 0
+        self.food = 1
+        self.world.sum_food_eaten += 1
+        self.time_in_light = 1
+        self.world.sum_suntan += 1
         self.world.pop_size += 1
 
     def step(self, *args):
@@ -153,8 +158,9 @@ class Worm(object):
             self.time_in_light += 1
             self.world.sum_suntan += 1
         else:
-            self.time_in_light -= 1 if self.time_in_light > 0 else 0
-            self.world.sum_suntan -= 1 if self.world.sum_suntan > 0 else 0
+            if self.time_in_light > 1:
+                self.time_in_light -= 1
+                self.world.sum_suntan -= 1
         self.age += 1
         self.move()
         return
@@ -252,6 +258,50 @@ class Worm(object):
                 self.x += 1
         return wall
 
+    def breed(self, mate, *args):
+        if args:
+            pass
+
+        p_dark = OrderedDict()
+        for i in STATES:
+            p_dark[i] = OrderedDict()
+            for j in STATES:
+                p_dark[i][j] = rand.choice([self.genome.p_dark[i][j], mate.genome.p_dark[i][j]])
+
+        p_light = OrderedDict()
+        for i in STATES:
+            p_light[i] = OrderedDict()
+            for j in STATES:
+                p_light[i][j] = rand.choice([self.genome.p_light[i][j], mate.genome.p_light[i][j]])
+
+        p_dark_wall = OrderedDict()
+        for i in STATES:
+            p_dark_wall[i] = OrderedDict()
+            for j in STATES:
+                p_dark_wall[i][j] = rand.choice([self.genome.p_dark_wall[i][j], mate.genome.p_dark_wall[i][j]])
+
+        p_light_wall = OrderedDict()
+        for i in STATES:
+            p_light_wall[i] = OrderedDict()
+            for j in STATES:
+                p_light_wall[i][j] = rand.choice([self.genome.p_light_wall[i][j], mate.genome.p_light_wall[i][j]])
+
+        new_genome = Genome(p_dark, p_light, p_dark_wall, p_light_wall)
+        worm = Worm(self.world, new_genome)
+        # Place the offspring in an adjacent (or the same) space
+        worm.x, worm.y = rand.choice(self.adjacent_spaces())
+        self.world.grid[worm.x][worm.y] = 3
+        return worm
+
+    def adjacent_spaces(self, *args):
+        if args:
+            pass
+        spaces = [(self.x - 1, self.y - 1), (self.x - 1, self.y), (self.x - 1, self.y + 1),
+                  (self.x, self.y - 1),     (self.x, self.y),     (self.x, self.y + 1),
+                  (self.x + 1, self.y - 1), (self.x + 1, self.y), (self.x + 1, self.y + 1)]
+        spaces = [space for space in spaces if space in self.world.dish_surface]
+        return spaces
+
 
 def random_transition_matrix(keys):
     """
@@ -276,8 +326,8 @@ def random_transition_matrix(keys):
 def event_handler():
     # This is the primary listener logic, it catches all types of input
     for event in pygame.event.get():
-        print(event)
         if event.type == QUIT or (event.type == KEYDOWN and (event.key in [K_ESCAPE, K_q])):
+            print("\n")
             pygame.quit()
             quit()
 
@@ -294,6 +344,7 @@ def main(len_side, pixel_size, starting_pop_size):
     world = World(len_side, pixel_size)
     world.light_spots = define_circle_edges(10, 1, 20, 20, fill=True)
     worms = [Worm(world, Genome()) for _ in range(starting_pop_size)]
+    printer = br.DynamicPrint()
     while True:
         event_handler()
         for i in range(pix_per_side):
@@ -304,12 +355,35 @@ def main(len_side, pixel_size, starting_pop_size):
                     world.grid[i][j] = 2
                 else:
                     world.grid[i][j] = 1
+        # Movement
         for worm in worms:
             worm.step()
+
+        # Breeding
+        offspring = []
+        for worm in worms:
+            prob_breed = worm.time_in_light / world.sum_suntan
+            breed_check = rand.random()
+            if prob_breed > breed_check:
+                mates = [mate for mate in worms if (mate.x, mate.y) == (worm.x, worm.y)]
+                if mates:
+                    mate = rand.choice(mates)
+                    offspring.append(worm.breed(mate))
+        worms += offspring
+
+        # Killing: Each cycle, set the max population size by drawing from a poisson distribution with mu = 1000
+        max_pop_size = poisson.rvs(1000)
+        number_deaths = world.pop_size - max_pop_size if max_pop_size < world.pop_size else 0
+        #death_row = []
+        #for worm in worms:
+        #    prob_death = worm.
+
+        # Draw world
         for indx_i, i in enumerate(world.grid):
             for indx_j, j in enumerate(i):
                 draw_pixel(indx_i, indx_j, j)
         # print(max([worm.time_in_light for worm in worms]))
+        printer.write("%s, %s" % (world.pop_size, number_deaths))
         pygame.display.update()
 
 
