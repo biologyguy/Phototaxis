@@ -84,6 +84,7 @@ def test_worm_init(ho):
     assert worm.genome
     assert worm.time_in_light == 0
     assert worm.age == 0
+    assert worm.world.pop_size == 1
 
 
 def test_worm_step(ho):
@@ -95,11 +96,13 @@ def test_worm_step(ho):
     worm.step(worm)
     assert worm.age == 1
     assert worm.time_in_light == 1
+    assert worm.world.sum_suntan == 1
 
     worm.x, worm.y = 2, 2
     worm.step(worm)
     assert worm.age == 2
     assert worm.time_in_light == 0
+    assert worm.world.sum_suntan == 0
 
 
 def test_worm_move(monkeypatch, capsys, ho):

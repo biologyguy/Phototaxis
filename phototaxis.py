@@ -139,6 +139,7 @@ class Worm(object):
         self.genome = genome
         self.age = 0
         self.time_in_light = 0
+        self.world.pop_size += 1
 
     def step(self, *args):
         """
@@ -150,8 +151,10 @@ class Worm(object):
             pass
         if (self.x, self.y) in self.world.light_spots:
             self.time_in_light += 1
+            self.world.sum_suntan += 1
         else:
             self.time_in_light -= 1 if self.time_in_light > 0 else 0
+            self.world.sum_suntan -= 1 if self.world.sum_suntan > 0 else 0
         self.age += 1
         self.move()
         return
@@ -284,13 +287,13 @@ def draw_pixel(x, y, type_val, scale=10):
     return
 
 
-def main(len_side, pixel_size):
+def main(len_side, pixel_size, starting_pop_size):
     if len_side % pixel_size:
         raise ValueError("len_side is not divisible by pixel_size")
     pix_per_side = int(len_side / pixel_size)
     world = World(len_side, pixel_size)
     world.light_spots = define_circle_edges(10, 1, 20, 20, fill=True)
-    worms = [Worm(world, Genome()) for _ in range(1000)]
+    worms = [Worm(world, Genome()) for _ in range(starting_pop_size)]
     while True:
         event_handler()
         for i in range(pix_per_side):
@@ -320,4 +323,4 @@ if __name__ == '__main__':
     game_display.fill((255, 255, 255))
     pygame.display.set_caption('Phototaxis Simulation')
 
-    main(100, 1)
+    main(len_side=100, pixel_size=1, starting_pop_size=1000)
