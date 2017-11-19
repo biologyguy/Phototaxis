@@ -33,7 +33,8 @@ class HelperObjects(object):
     def worm(self):
         light = [(1, 1), (1, 2)]
         worm_obj = types.SimpleNamespace(grid=self.grid(), x=2, y=2, light=light, direction=0,
-                                         state='left', genome=self.genome(), time_in_light=1)
+                                         state='left', genome=self.genome(), age=1, time_in_light=1,
+                                         time_in_dark=1)
         return worm_obj
 
 

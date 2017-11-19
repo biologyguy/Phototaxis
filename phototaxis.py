@@ -117,7 +117,25 @@ class Worm(object):
         self.direction = rand.choice([0, 1, 2, 3])
         self.state = rand.choice(STATES)
         self.genome = genome
+        self.age = 1
         self.time_in_light = 1
+        self.time_in_dark = 1
+
+    def step(self, *args):
+        """
+        Do a full step in the simulation
+        :param args:
+        :return:
+        """
+        if args:
+            pass
+        if (self.x, self.y) in self.light:
+            self.time_in_light += 1
+        else:
+            self.time_in_dark += 1
+        self.age += 1
+        self.move()
+        return
 
     def move(self, *args):
         """
@@ -280,13 +298,11 @@ def main(len_side, pixel_size):
                 else:
                     grid.grid[i][j] = 1
         for worm in worms:
-            if (worm.x, worm.y) in light:
-                worm.time_in_light += 1
-            worm.move()
+            worm.step()
         for indx_i, i in enumerate(grid.grid):
             for indx_j, j in enumerate(i):
                 draw_pixel(indx_i, indx_j, j)
-        print(max([worm.time_in_light for worm in worms]))
+        # print(max([worm.time_in_light for worm in worms]))
         pygame.display.update()
 
 

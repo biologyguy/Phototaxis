@@ -81,6 +81,25 @@ def test_worm_init(ho):
     assert worm.state in phototaxis.STATES
     assert worm.genome
     assert worm.time_in_light == 1
+    assert worm.time_in_dark == 1
+    assert worm.age == 1
+
+
+def test_worm_step(monkeypatch, ho):
+    worm = ho.worm()
+    worm.step = phototaxis.Worm.step
+    worm.move = lambda *_: True
+
+    worm.step(worm)
+    assert worm.age == 2
+    assert worm.time_in_dark == 2
+    assert worm.time_in_light == 1
+
+    worm.x, worm.y = 1, 2
+    worm.step(worm)
+    assert worm.age == 3
+    assert worm.time_in_dark == 2
+    assert worm.time_in_light == 2
 
 
 def test_worm_move(monkeypatch, capsys, ho):
