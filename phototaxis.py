@@ -1,4 +1,5 @@
 import pygame
+import numpy as np
 from pygame.locals import *
 from random import Random
 from collections import OrderedDict
@@ -8,6 +9,31 @@ from buddysuite import buddy_resources as br
 rand = Random()
 STATES = ["fwd", "rev", "left", "right", "stop"]
 type_colors = {0: (0, 0, 0), 1: (255, 255, 255), 2: (0, 128, 255), 3: (255, 100, 0)}
+
+
+def weighted_choice(items, weights, number=1, replacement=False):
+    if not replacement and number > len(items):
+        raise ValueError("Too many choices requested without replacement "
+                         "(%s items and %s requested)" % (len(items), number))
+    if len(items) != len(weights):
+        raise ValueError("The `items` and `weights` parameters are different sizes")
+
+    results = []
+    sum_weights = sum(weights)
+    std_weights = [x / sum_weights for x in weights]
+    for i in range(number):
+        choice = rand.random()
+        tally = 0
+        for indx, weight in enumerate(std_weights):
+            tally += weight
+            if tally >= choice:
+                results.append(items[indx])
+                if not replacement:
+                    std_weights[indx] = 0
+                    sum_weights = sum(std_weights)
+                    std_weights = [x / sum_weights for x in std_weights]
+                break
+    return results
 
 
 def flood_fill(x_ori, y_ori, edges):
@@ -374,8 +400,8 @@ def main(len_side, pixel_size, starting_pop_size):
         # Killing: Each cycle, set the max population size by drawing from a poisson distribution with mu = 1000
         max_pop_size = poisson.rvs(1000)
         number_deaths = world.pop_size - max_pop_size if max_pop_size < world.pop_size else 0
-        #death_row = []
-        #for worm in worms:
+        # death_row = []
+        # for worm in worms:
         #    prob_death = worm.
 
         # Draw world

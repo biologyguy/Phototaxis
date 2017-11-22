@@ -19,6 +19,35 @@ def mock_define_circle_edges(*args, **kwargs):
 # ############################################################## #
 
 
+def test_weighted_choice(monkeypatch, capsys):
+    items = ["a", "b", "c"]
+    weights = [1, 2, 3]
+    monkeypatch.setattr(phototaxis.rand, "random", lambda *_: 0.15)
+    assert phototaxis.weighted_choice(items, weights) == ["a"]
+
+    monkeypatch.setattr(phototaxis.rand, "random", lambda *_: 0.5)
+    assert phototaxis.weighted_choice(items, weights) == ["b"]
+
+    monkeypatch.setattr(phototaxis.rand, "random", lambda *_: 0.500001)
+    assert phototaxis.weighted_choice(items, weights) == ["c"]
+
+    rand = Random(1)
+    monkeypatch.setattr(phototaxis, "rand", rand)
+    assert phototaxis.weighted_choice(items, weights, 2) == ["a", "c"]
+
+    rand = Random(1)
+    monkeypatch.setattr(phototaxis, "rand", rand)
+    assert phototaxis.weighted_choice(items, weights, 10, True) == ["a", "c", "c", "b", "b", "b", "c", "c", "a", "a"]
+
+    with pytest.raises(ValueError) as err:
+        phototaxis.weighted_choice(items, weights, 10)
+    assert "Too many choices requested without replacement" in str(err)
+
+    with pytest.raises(ValueError) as err:
+        phototaxis.weighted_choice(items + items, weights)
+    assert "The `items` and `weights` parameters are different sizes" in str(err)
+
+
 def test_flood_fill():
     edges = [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 0), (1, 4), (2, 0), (2, 4), (3, 0), (3, 4),
              (4, 0), (4, 1), (4, 2), (4, 3), (4, 5)]
