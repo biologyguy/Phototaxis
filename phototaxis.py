@@ -11,7 +11,7 @@ STATES = ["fwd", "rev", "left", "right", "stop"]
 type_colors = {0: (0, 0, 0), 1: (255, 255, 255), 2: (0, 128, 255), 3: (255, 100, 0)}
 
 
-def weighted_choice(items, weights, number=1, replacement=False):
+def weighted_choice(items, weights, number=1, replacement=False, return_index=False):
     if not replacement and number > len(items):
         raise ValueError("Too many choices requested without replacement "
                          "(%s items and %s requested)" % (len(items), number))
@@ -27,7 +27,10 @@ def weighted_choice(items, weights, number=1, replacement=False):
         for indx, weight in enumerate(std_weights):
             tally += weight
             if tally >= choice:
-                results.append(items[indx])
+                if return_index:
+                    results.append(indx)
+                else:
+                    results.append(items[indx])
                 if not replacement:
                     std_weights[indx] = 0
                     sum_weights = sum(std_weights)
@@ -398,11 +401,18 @@ def main(len_side, pixel_size, starting_pop_size):
         worms += offspring
 
         # Killing: Each cycle, set the max population size by drawing from a poisson distribution with mu = 1000
-        max_pop_size = poisson.rvs(1000)
+        max_pop_size = poisson.rvs(starting_pop_size)
         number_deaths = world.pop_size - max_pop_size if max_pop_size < world.pop_size else 0
-        # death_row = []
-        # for worm in worms:
-        #    prob_death = worm.
+        # More food gives an advantage, so find the relative amount of food eaten and subtract it from one
+        if world.sum_food_eaten:
+            weights = [(worm, 1 - (worm.food / world.sum_food_eaten)) for worm in worms]
+        else:
+            weights = [(worm, 1) for worm in worms]
+        death_row = weighted_choice([i[0] for i in weights], [i[1] for i in weights], number=number_deaths,
+                                    return_index=True)
+        for indx in sorted(death_row, reverse=True):
+            del worms[indx]
+        world.pop_size -= len(death_row)
 
         # Draw world
         for indx_i, i in enumerate(world.grid):

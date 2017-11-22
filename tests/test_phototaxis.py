@@ -34,10 +34,8 @@ def test_weighted_choice(monkeypatch, capsys):
     rand = Random(1)
     monkeypatch.setattr(phototaxis, "rand", rand)
     assert phototaxis.weighted_choice(items, weights, 2) == ["a", "c"]
-
-    rand = Random(1)
-    monkeypatch.setattr(phototaxis, "rand", rand)
-    assert phototaxis.weighted_choice(items, weights, 10, True) == ["a", "c", "c", "b", "b", "b", "c", "c", "a", "a"]
+    assert phototaxis.weighted_choice(items, weights, 10, True) == ['c', 'b', 'b', 'b', 'c', 'c', 'a', 'a', 'c', 'b']
+    assert phototaxis.weighted_choice(items, weights, 10, True, True) == [2, 0, 1, 2, 1, 2, 2, 0, 0, 2]
 
     with pytest.raises(ValueError) as err:
         phototaxis.weighted_choice(items, weights, 10)
