@@ -16,12 +16,15 @@ class HelperObjects(object):
     def world():
         world_obj = types.SimpleNamespace()
         world_obj.grid = [[None for _ in range(4)] for _ in range(4)]
-        world_obj.dish_surface = [(1, 1), (1, 2), (1, 3),
-                                  (2, 1), (2, 2), (2, 3),
-                                  (3, 1), (3, 2), (3, 3)]
-        world_obj.dish_edges = [(0, 1), (0, 2), (0, 3), (1, 0), (1, 4), (2, 0), (2, 4),
-                                (3, 0), (3, 4), (4, 1), (4, 2), (4, 3)]
-        world_obj.light_spots = [(1, 1), (1, 2)]
+        world_obj.dish_edges = {(0, 1): None, (0, 2): None, (0, 3): None, (1, 0): None,
+                                (1, 4): None, (2, 0): None, (2, 4): None, (3, 0): None,
+                                (3, 4): None, (4, 1): None, (4, 2): None, (4, 3): None}
+        world_obj.dish_surface = {(1, 1): None, (1, 2): None, (1, 3): None,
+                                  (2, 1): None, (2, 2): None, (2, 3): None,
+                                  (3, 1): None, (3, 2): None, (3, 3): None}
+
+        world_obj.light_spots = {(1, 1): None, (1, 2): None}
+        world_obj.food_locations = {(2, 2): None, (3, 2): None}
         world_obj.pop_size = 0
         world_obj.sum_food_eaten = 0
         world_obj.sum_suntan = 0
@@ -40,7 +43,7 @@ class HelperObjects(object):
 
     def worm(self):
         worm_obj = types.SimpleNamespace(world=self.world(), x=2, y=2, direction=0, state='left',
-                                         genome=self.genome(), age=0, time_in_light=1)
+                                         genome=self.genome(), age=0, food=0, time_in_light=1)
         worm_obj.world.sum_suntan += 1
         worm_obj.world.pop_size += 1
         return worm_obj

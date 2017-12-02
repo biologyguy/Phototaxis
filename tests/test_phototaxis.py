@@ -76,17 +76,28 @@ def test_define_circle_edges():
 
 def test_world_init(monkeypatch):
     monkeypatch.setattr(phototaxis, "define_circle_edges", mock_define_circle_edges)
-    world = phototaxis.World(3, 1)
-    assert world.grid == [[None, None, None], [None, None, None], [None, None, None]]
+    world = phototaxis.World(2, 1)
+    assert world.grid == [[None, None], [None, None]]
 
-    assert world.dish_edges == [(0, 1), (0, 2), (0, 3), (1, 0), (1, 4), (2, 0),
-                                (2, 4), (3, 0), (3, 4), (4, 1), (4, 2), (4, 3)]
-    assert world.dish_surface == [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
-    assert world.light_spots == []
+    assert world.dish_edges == {(0, 1): None, (0, 2): None, (0, 3): None, (1, 0): None,
+                                (1, 4): None, (2, 0): None, (2, 4): None, (3, 0): None,
+                                (3, 4): None, (4, 1): None, (4, 2): None, (4, 3): None}
+    assert world.dish_surface == {(1, 1): None, (1, 2): None, (1, 3): None,
+                                  (2, 1): None, (2, 2): None, (2, 3): None,
+                                  (3, 1): None, (3, 2): None, (3, 3): None}
+    assert world.light_spots == {}
     assert world.pop_size == 0
     assert world.sum_food_eaten == 0
     assert world.sum_suntan == 0
 
+
+def test_world_scatter_food(ho, monkeypatch):
+    rand = Random(1)
+    monkeypatch.setattr(phototaxis, "rand", rand)
+    world = ho.world()
+    world.scatter_food = phototaxis.World.scatter_food
+    world.scatter_food(world, 1)
+    assert world.food_locations == {(2, 2): None, (3, 2): None, (1, 2): None}
 
 def test_genome_init(monkeypatch):
     monkeypatch.setattr(phototaxis, "random_transition_matrix", lambda *_, **__: "foo")
@@ -267,7 +278,7 @@ def test_worm_breed(ho, monkeypatch):
     world = ho.world()
     worm1 = ho.worm()
     worm2 = ho.worm()
-    worm1.adjacent_spaces = lambda *_: world.dish_surface
+    worm1.adjacent_spaces = lambda *_: list(world.dish_surface.keys())
     worm1.breed = phototaxis.Worm.breed
     worm1.genome.p_dark["fwd"] = OrderedDict([(state, 1) for state in phototaxis.STATES])
     worm1.genome.p_light["fwd"] = OrderedDict([(state, 1) for state in phototaxis.STATES])

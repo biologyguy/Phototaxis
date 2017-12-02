@@ -8,7 +8,7 @@ from buddysuite import buddy_resources as br
 
 rand = Random()
 STATES = ["fwd", "rev", "left", "right", "stop"]
-type_colors = {0: (0, 0, 0), 1: (255, 255, 255), 2: (0, 128, 255), 3: (255, 100, 0)}
+type_colors = {0: (0, 0, 0), 1: (255, 255, 255), 2: (0, 128, 255), 3: (255, 100, 0), 4: (152, 251, 152)}
 
 
 def weighted_choice(items, weights, number=1, replacement=False, return_index=False):
@@ -118,21 +118,28 @@ class World(object):
         1 = Open space, no light = white
         2 = Open space, light    = blue
         3 = Occupied             = orange
+        4 = Food                 = light green
         """
 
         # Initiate the environment
         pix_per_side = int(len_side / pixel_size)
         self.grid = [[None for _ in range(pix_per_side)] for _ in range(pix_per_side)]
-        self.dish_edges = define_circle_edges(len_side, pixel_size)
-        self.dish_surface = define_circle_edges(len_side, pixel_size, fill=True)
+        self.dish_edges = {tup: None for tup in define_circle_edges(len_side, pixel_size)}
+        self.dish_surface = {tup: None for tup in define_circle_edges(len_side, pixel_size, fill=True)}
         for edge in self.dish_edges:
-            del self.dish_surface[self.dish_surface.index(edge)]
-        self.light_spots = []
+            del self.dish_surface[edge]
+        self.light_spots = {}
+        self.food_locations = {}
 
         # Set a few global variables
         self.pop_size = 0
         self.sum_food_eaten = 0
         self.sum_suntan = 0
+
+    def scatter_food(self, num_dropped):
+        for food in rand.choices(list(self.dish_surface.keys()), k=num_dropped):
+            self.food_locations[food] = None
+        return
 
 
 class Genome(object):
@@ -164,13 +171,12 @@ class Worm(object):
         3 = Left
         """
         self.world = world
-        self.x, self.y = rand.choice(self.world.dish_surface)
+        self.x, self.y = rand.choice(list(self.world.dish_surface.keys()))
         self.direction = rand.choice([0, 1, 2, 3])
         self.state = rand.choice(STATES)
         self.genome = genome
         self.age = 0
-        self.food = 1
-        self.world.sum_food_eaten += 1
+        self.food = 0
         self.time_in_light = 1
         self.world.sum_suntan += 1
         self.world.pop_size += 1
@@ -190,7 +196,15 @@ class Worm(object):
             if self.time_in_light > 1:
                 self.time_in_light -= 1
                 self.world.sum_suntan -= 1
+        if (self.x, self.y) in self.world.food_locations:
+            self.food += 10
+            self.world.sum_food_eaten += 10
+            del self.world.food_locations[(self.x, self.y)]
+
         self.age += 1
+        if self.food > 0:
+            self.food -= 1
+            self.world.sum_food_eaten -= 1
         self.move()
         return
 
@@ -371,19 +385,29 @@ def main(len_side, pixel_size, starting_pop_size):
         raise ValueError("len_side is not divisible by pixel_size")
     pix_per_side = int(len_side / pixel_size)
     world = World(len_side, pixel_size)
-    world.light_spots = define_circle_edges(10, 1, 20, 20, fill=True)
+    world.light_spots = {tup: None for tup in define_circle_edges(10, 1, 20, 20, fill=True)}
+    world.light_spots = {}
     worms = [Worm(world, Genome()) for _ in range(starting_pop_size)]
     printer = br.DynamicPrint()
+    print("Pop size    Sum eaten    Sum suntan    Num food spots")
     while True:
         event_handler()
+        world.scatter_food(10)
         for i in range(pix_per_side):
             for j in range(pix_per_side):
-                if (i * pixel_size, j * pixel_size) in world.dish_edges:
+                i *= pixel_size
+                j *= pixel_size
+                if (i, j) in world.dish_edges:
                     world.grid[i][j] = 0
-                elif (i * pixel_size, j * pixel_size) in world.light_spots:
+                elif (i, j) in world.light_spots:
                     world.grid[i][j] = 2
+                elif (i, j) in world.food_locations:
+                    world.grid[i][j] = 4
                 else:
                     world.grid[i][j] = 1
+        # Sorting. Younger worms have greater initiative
+        worms = sorted(worms, key=lambda x: x.age)
+
         # Movement
         for worm in worms:
             worm.step()
@@ -403,14 +427,17 @@ def main(len_side, pixel_size, starting_pop_size):
         # Killing: Each cycle, set the max population size by drawing from a poisson distribution with mu = 1000
         max_pop_size = poisson.rvs(starting_pop_size)
         number_deaths = world.pop_size - max_pop_size if max_pop_size < world.pop_size else 0
-        # More food gives an advantage, so find the relative amount of food eaten and subtract it from one
+
+        # More food and younger age gives an advantage, so find relative amount of food eaten and subtract it from 1
         if world.sum_food_eaten:
-            weights = [(worm, 1 - (worm.food / world.sum_food_eaten)) for worm in worms]
+            weights = [(worm, 1 - ((worm.food - (worm.age / 10)) / world.sum_food_eaten)) for worm in worms]
         else:
             weights = [(worm, 1) for worm in worms]
         death_row = weighted_choice([i[0] for i in weights], [i[1] for i in weights], number=number_deaths,
                                     return_index=True)
         for indx in sorted(death_row, reverse=True):
+            world.sum_food_eaten -= worms[indx].food
+            world.sum_suntan -= worms[indx].time_in_light
             del worms[indx]
         world.pop_size -= len(death_row)
 
@@ -418,8 +445,10 @@ def main(len_side, pixel_size, starting_pop_size):
         for indx_i, i in enumerate(world.grid):
             for indx_j, j in enumerate(i):
                 draw_pixel(indx_i, indx_j, j)
-        # print(max([worm.time_in_light for worm in worms]))
-        printer.write("%s, %s" % (world.pop_size, number_deaths))
+
+        output = "{:<12}{:<13}{:<14}{:<17}".format(world.pop_size, world.sum_food_eaten,
+                                                   world.sum_suntan, len(world.food_locations))
+        printer.write(output)
         pygame.display.update()
 
 
